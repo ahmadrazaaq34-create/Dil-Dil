@@ -127,7 +127,7 @@ class DilDilApp:
             on_tray_notify=self._notify_tray
         )
         self.main_window.setWindowIcon(self.app_icon)
-        self.main_window.show()
+        self._show_main_window()
         self.qapp.processEvents()
 
         # Initialize Floating Pill UI (Minimal Wispr Flow design)
@@ -261,14 +261,18 @@ class DilDilApp:
         print("[DIL DIL] Restoring main window...")
         self.main_window.setWindowState(Qt.WindowState.WindowNoState)
         self.main_window.showNormal()
-        self.main_window.show()
+        self.main_window.setVisible(True)
         self.main_window.raise_()
         self.main_window.activateWindow()
         self.main_window.update()
 
         try:
             hwnd = int(self.main_window.winId())
-            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            # SW_SHOWNORMAL (1) unhides and activates a hidden window; SW_SHOW (5) ensures visibility
+            user32.ShowWindow(hwnd, 1)
+            user32.ShowWindow(hwnd, 5)
+            user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040)  # SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW
+
             fg_hwnd = user32.GetForegroundWindow()
             if fg_hwnd and fg_hwnd != hwnd:
                 fg_thread = user32.GetWindowThreadProcessId(fg_hwnd, None)
@@ -417,7 +421,18 @@ class DilDilApp:
         self.pill.close()
         self.qapp.quit()
 
+def ensure_default_desktop():
+    """Ensures process and GUI thread attach to the real interactive user desktop (Default)."""
+    try:
+        h_desk = user32.OpenDesktopW("Default", 0, False, 0x01FF)
+        if h_desk:
+            user32.SetThreadDesktop(h_desk)
+    except Exception:
+        pass
+
 def main():
+    ensure_default_desktop()
+
     # If an existing instance is already running, activate it via IPC and exit immediately
     if try_activate_existing_instance():
         sys.exit(0)
