@@ -6,6 +6,9 @@ import threading
 import ctypes
 import gc
 
+user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
+
 def trim_memory():
     """Trims inactive memory pages on Windows to keep DIL DIL ultra-lightweight (<30 MB)."""
     try:
@@ -82,10 +85,12 @@ def try_activate_existing_instance() -> bool:
     socket = QLocalSocket()
     socket.connectToServer(IPC_SERVER_NAME)
     if socket.waitForConnected(600):
-        socket.write(b"SHOW\n")
-        socket.waitForBytesWritten(600)
+        try:
+            ctypes.windll.user32.AllowSetForegroundWindow(-1)
+        except Exception:
+            pass
         socket.disconnectFromServer()
-        print("[DIL DIL] Existing instance active. Sent SHOW signal via local IPC.")
+        print("[DIL DIL] Existing instance active. Triggered restore signal.")
         return True
     return False
 
@@ -245,35 +250,42 @@ class DilDilApp:
         self.ipc_server.newConnection.connect(self._on_ipc_connection)
 
     def _on_ipc_connection(self):
-        client = self.ipc_server.nextPendingConnection()
-        if client:
-            client.readyRead.connect(lambda: self._handle_ipc_message(client))
-
-    def _handle_ipc_message(self, client):
-        try:
-            data = bytes(client.readAll()).strip()
-            if b"SHOW" in data:
-                QTimer.singleShot(0, self._show_main_window)
-        except Exception:
-            pass
-        finally:
-            client.disconnectFromServer()
+        while self.ipc_server.hasPendingConnections():
+            client = self.ipc_server.nextPendingConnection()
+            if client:
+                client.disconnectFromServer()
+        print("[DIL DIL] Single instance activation request received -> Showing window.")
+        QTimer.singleShot(0, self._show_main_window)
 
     def _show_main_window(self):
-        if self.main_window.isMinimized():
-            self.main_window.showNormal()
-        else:
-            self.main_window.show()
+        print("[DIL DIL] Restoring main window...")
+        self.main_window.setWindowState(Qt.WindowState.WindowNoState)
+        self.main_window.showNormal()
+        self.main_window.show()
         self.main_window.raise_()
         self.main_window.activateWindow()
-        self.main_window.repaint()
+        self.main_window.update()
+
         try:
-            user32 = ctypes.windll.user32
             hwnd = int(self.main_window.winId())
             user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-            user32.SetForegroundWindow(hwnd)
-        except Exception:
-            pass
+            fg_hwnd = user32.GetForegroundWindow()
+            if fg_hwnd and fg_hwnd != hwnd:
+                fg_thread = user32.GetWindowThreadProcessId(fg_hwnd, None)
+                cur_thread = user32.GetCurrentThreadId()
+                if fg_thread != cur_thread:
+                    user32.AttachThreadInput(cur_thread, fg_thread, True)
+                    user32.SetForegroundWindow(hwnd)
+                    user32.BringWindowToTop(hwnd)
+                    user32.AttachThreadInput(cur_thread, fg_thread, False)
+                else:
+                    user32.SetForegroundWindow(hwnd)
+                    user32.BringWindowToTop(hwnd)
+            else:
+                user32.SetForegroundWindow(hwnd)
+                user32.BringWindowToTop(hwnd)
+        except Exception as e:
+            print(f"[DIL DIL] Window restore note: {e}")
 
     def _on_config_updated(self, new_config: dict):
         self.config = new_config
