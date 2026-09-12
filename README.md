@@ -24,7 +24,7 @@
 
 Whether you're writing code in VS Code, drafting emails in Gmail, chatting on WhatsApp, or taking notes in Notion, just hold your hotkey, speak naturally, and let DIL DIL type for you.
 
-> **Proudly crafted in Pakistan 🇵🇰 by [Ahmed Raza](https://github.com/).**
+> **Proudly crafted in Pakistan 🇵🇰 by [Ahmed Raza](https://github.com/ahmadrazaaq34-create).**
 
 ---
 
@@ -65,8 +65,8 @@ Whether you're writing code in VS Code, drafting emails in Gmail, chatting on Wh
 
 ### 2. Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/dil-dil.git
-cd dil-dil
+git clone https://github.com/ahmadrazaaq34-create/Dil-Dil.git
+cd Dil-Dil
 ```
 
 ### 3. Install Dependencies
@@ -102,7 +102,7 @@ python main.py
 ## 📁 Project Architecture
 
 ```
-dil-dil/
+Dil-Dil/
 ├── assets/                  # High-res icons, emblem, tray graphics
 ├── core/
 │   ├── gemini_engine.py     # Gemini Flash streaming API with model auto-discovery
@@ -123,11 +123,11 @@ dil-dil/
 
 ## 🇵🇰 Author & Credits
 
-**DIL DIL** is created and maintained by **Ahmed Raza**.
+**DIL DIL** is created and maintained by **[Ahmed Raza](https://github.com/ahmadrazaaq34-create)**.
 
-- **Author**: Ahmed Raza
+- **Author**: Ahmed Raza ([@ahmadrazaaq34-create](https://github.com/ahmadrazaaq34-create))
 - **Country**: Pakistan 🇵🇰
-- **Inquiries & Feedback**: Feel free to open an issue or start a discussion on this repository!
+- **Feedback & Issues**: [Open an Issue](https://github.com/ahmadrazaaq34-create/Dil-Dil/issues)
 
 > *"Dil Dil Pakistan, Jaan Jaan Pakistan!"* 🇵🇰💚
 
