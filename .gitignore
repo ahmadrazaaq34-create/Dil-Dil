@@ -1,0 +1,36 @@
+# Configuration & Private API Keys (NEVER commit your Gemini API Key)
+config.json
+
+# Logs & Runtime Dumps
+*.log
+app_runtime.log
+pythonw_err.log
+pythonw_out.log
+debug_run.log
+run_err.log
+
+# Voice Calibration / Recorded Audio Data
+*.wav
+assets/user_voice_profile.wav
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE & Editor Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Windows System Files
+Thumbs.db
+Desktop.ini

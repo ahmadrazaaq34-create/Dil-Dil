@@ -1,0 +1,9 @@
+{
+  "app_name": "DIL DIL",
+  "gemini_api_key": "YOUR_GEMINI_API_KEY_HERE",
+  "active_model": "gemini-flash-lite-latest",
+  "hotkey": "ctrl+shift",
+  "target_language": "english",
+  "audio_sample_rate": 16000,
+  "minimize_to_tray": true
+}
