@@ -145,25 +145,24 @@ class GeminiEngine:
         lang_key = target_lang.lower().strip()
 
         base_negative_rules = (
-            "\nCRITICAL SPEAKER & NOISE RESTRICTIONS:\n"
-            "- SPEAKER ISOLATION: Transcribe ONLY the primary foreground speaker talking directly into the microphone.\n"
-            "- STRICT NOISE FILTERING: Strictly drop, ignore, and filter out any secondary background chatter, conversations from other people in the room (such as classmates, colleagues, siblings), music, TV, or ambient room noise.\n"
-            "- If the primary speaker is silent or only background chatter is audible, output NOTHING (empty string).\n"
-            "- NEVER use emojis, icons, or emoticons (NO 🔮, 💻, ❌, ✨, etc.). Emojis are strictly banned.\n"
-            "- NEVER output technical notes, simulation text, timestamps, counters, or repeated zero numbers (e.g. '0000', 'simulation').\n"
-            "- Output ONLY clean, natural text. No markdown quotes or explanations."
+            "\nCRITICAL SPEAKER & SILENCE RULES (STRICT):\n"
+            "- MANDATORY SILENCE FILTER: If the user did not speak any clear, intelligible words, or if there is only silence, breathing, background noise, clicks, or hum, you MUST return ABSOLUTELY NOTHING. Return an empty string \"\".\n"
+            "- NEVER GUESS OR HALLUCINATE: Never invent, guess, fabricate, or autocomplete conversational sentences (such as scheduling meetings, phone calls, greetings, or project tasks) if they were not explicitly spoken in this audio.\n"
+            "- SPEAKER ISOLATION: Transcribe ONLY the primary foreground speaker talking directly into the microphone. Drop and ignore any background chatter, TV, music, or other people speaking in the room.\n"
+            "- NO EMOJIS: Never use emojis, symbols, or emoticons. Output clean plain text only.\n"
+            "- NO COMMENTARY: Output ONLY the transcribed or translated words. No quotation marks, notes, or explanations."
         )
 
         if lang_key == "urdu":
             return (
                 "You are an expert Urdu voice dictation transcriber.\n"
-                "The user is speaking in colloquial Urdu (often with common English loanwords like 'meeting', 'office', 'call', 'file').\n"
+                "The user is speaking in Urdu.\n"
                 "Task:\n"
                 "1. Accurately transcribe the user's speech into proper Urdu script (اردو).\n"
-                "2. Transcribe English loanwords naturally in Urdu script or appropriate phrasing.\n"
-                "3. Remove vocal fillers like 'uh', 'um', 'achha', 'matlab'.\n"
-                "4. STRICT FIDELITY: Never add words not spoken by the user.\n"
-                "5. OUTPUT RULE: Output ONLY the transcribed Urdu text. Do NOT add quotes or explanations."
+                "2. Transcribe any spoken English loanwords naturally into Urdu script.\n"
+                "3. Remove vocal fillers like 'uh', 'um'.\n"
+                "4. STRICT FIDELITY: Transcribe only what was actually spoken. If silent, output nothing.\n"
+                "5. OUTPUT RULE: Output ONLY the transcribed Urdu text."
                 + base_negative_rules
             )
         elif lang_key == "roman_urdu":
@@ -171,33 +170,33 @@ class GeminiEngine:
                 "You are an expert voice transcriber for Roman Urdu (Urdu written in English Latin alphabet).\n"
                 "The user is speaking in Pakistani Urdu.\n"
                 "Task:\n"
-                "1. Transcribe the speech phonetically into standard, clean Roman Urdu (e.g., 'Kal subah 10 baje meeting confirm kar dein').\n"
-                "2. Remove filler sounds ('uh', 'umm').\n"
-                "3. OUTPUT RULE: Output ONLY the Roman Urdu text. No quotes or commentary."
+                "1. Transcribe the speech phonetically into standard, clean Roman Urdu.\n"
+                "2. Remove filler sounds.\n"
+                "3. STRICT FIDELITY: Transcribe only what was actually spoken. If silent, output nothing.\n"
+                "4. OUTPUT RULE: Output ONLY the Roman Urdu text."
                 + base_negative_rules
             )
         elif lang_key == "english":
             return (
-                "You are an elite real-time voice dictation translator specializing in conversational Pakistani Urdu, Hindi, and colloquial Hinglish.\n"
+                "You are an elite real-time voice dictation translator specializing in conversational Pakistani Urdu, Hindi, and Hinglish.\n"
                 "Task:\n"
                 "1. Listen carefully to the user's speech.\n"
                 "2. Translate accurately into fluent, natural, grammatically sound English.\n"
-                "3. Preserve technical terms, names, and English words already used by the speaker (e.g. meeting, laptop, email, project).\n"
-                "4. Clean up vocal fillers (like 'uh', 'um', 'achha', 'matlab', 'to fir').\n"
-                "5. STRICT FIDELITY: Never hallucinate words (like 'picture', 'photo', 'simulation') not spoken by the user.\n"
-                "6. If speech is silent or only background noise, output NOTHING (empty string).\n"
-                "7. LANGUAGE LOCK (CRITICAL): The output MUST be 100% pure English. Every Urdu, Hindi, or Punjabi word or phrase the user speaks MUST be translated into English. NEVER leave any Urdu/Hindi/Punjabi word untranslated in the output (only proper nouns like people/place names are exempt). Absolutely no code-switching like 'main ne kaha' mixed into English text.\n"
-                "8. OUTPUT RULE: Output ONLY the final plain English text. No quotation marks, notes, or replies."
+                "3. Clean up vocal fillers.\n"
+                "4. STRICT FIDELITY: Never hallucinate words not spoken by the user.\n"
+                "5. If speech is silent, inaudible, or only noise, output NOTHING (empty string).\n"
+                "6. LANGUAGE LOCK (CRITICAL): The output MUST be 100% pure English. Translate every spoken word into English.\n"
+                "7. OUTPUT RULE: Output ONLY the final plain English text. No quotes or commentary."
                 + base_negative_rules
             )
         else:
             lang_name = self.TARGET_LANGUAGES.get(lang_key, lang_key.capitalize())
             return (
                 f"You are an expert real-time voice translator.\n"
-                f"The user is speaking in Urdu/Hindi. Translate the speech accurately into natural, grammatically correct {lang_name}.\n"
-                f"STRICT FIDELITY: Do NOT add, infer, or fabricate unmentioned context. Remove vocal fillers.\n"
-                f"LANGUAGE LOCK (CRITICAL): The output MUST be 100% in {lang_name}. Translate every word spoken in any other language into {lang_name}. Never leave foreign words untranslated (proper nouns are exempt).\n"
-                f"OUTPUT RULE: Output ONLY the translated {lang_name} text. No quotes or commentary."
+                f"The user is speaking. Translate the speech accurately into natural, grammatically correct {lang_name}.\n"
+                f"STRICT FIDELITY: Do NOT add, infer, or fabricate unmentioned context. If silent, output nothing.\n"
+                f"LANGUAGE LOCK (CRITICAL): The output MUST be 100% in {lang_name}.\n"
+                f"OUTPUT RULE: Output ONLY the translated {lang_name} text."
                 + base_negative_rules
             )
 
@@ -215,6 +214,21 @@ class GeminiEngine:
 
         # Strip simulation / repeating zeros artifact
         cleaned = re.sub(r'(?i)^(simulation|simulated|sim|0000+)\b[\s:0-9\-]*', '', cleaned).strip()
+
+        # Silence hallucination patterns to suppress
+        hallucination_patterns = [
+            r'(?i)^let\'?s schedule a meeting.*',
+            r'(?i)^call me as soon as you reach.*',
+            r'(?i)^thank you for watching.*',
+            r'(?i)^subtitles by.*',
+            r'(?i)^please subscribe.*',
+            r'(?i)^you\'?re welcome.*',
+            r'(?i)^silence\.?$',
+            r'(?i)^no speech.*',
+        ]
+        for pat in hallucination_patterns:
+            if re.fullmatch(pat, cleaned):
+                return ""
 
         # Collapse multiple spaces
         cleaned = re.sub(r' +', ' ', cleaned)
@@ -248,8 +262,7 @@ class GeminiEngine:
 
         prompt = (
             "Transcribe or translate the speech from the primary speaker talking into the microphone.\n"
-            "Filter out all room noise and background chatter.\n"
-            "Follow system instructions strictly.\n"
+            "If the audio contains only silence, static, or background noise without speech, output an empty string.\n"
             "Output ONLY the final plain text directly. No commentary, no tags, no quotes."
         )
         contents_payload = [audio_part, prompt]

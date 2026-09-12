@@ -63,8 +63,7 @@ class AudioRecorder:
     def take_frames(self) -> list:
         """
         Live-streaming read: returns every audio chunk collected so far and
-        clears the internal buffer. Used by the SegmentCollector to process
-        speech in real time while the user is still holding the hotkey.
+        clears the internal buffer. Used to process speech in real time.
         """
         with self._lock:
             frames = self._frames
@@ -72,7 +71,11 @@ class AudioRecorder:
         return frames
 
     def stop(self) -> bytes:
-        """Stops recording and returns the audio as WAV bytes if speech is detected."""
+        """
+        Stops recording and evaluates audio energy.
+        Returns WAV bytes ONLY if genuine human speech is detected.
+        Filters out ambient room silence, microphone static, and background hiss.
+        """
         self.is_recording = False
         if self._stream:
             try:
@@ -88,12 +91,26 @@ class AudioRecorder:
             audio_data = np.concatenate(self._frames, axis=0)
 
         # Voice Activity Detection (VAD) / Silence Filter:
-        # Only discard if completely dead silence (e.g. muted microphone or zero signal)
-        max_amplitude = np.max(np.abs(audio_data))
         float_arr = audio_data.astype(np.float32) / 32768.0
-        overall_rms = np.sqrt(np.mean(float_arr**2))
+        max_amplitude = float(np.max(np.abs(audio_data)))
+        overall_rms = float(np.sqrt(np.mean(float_arr**2)))
 
-        if max_amplitude < 180 and overall_rms < 0.001:
+        # Frame-by-frame energy check (30ms frames = 480 samples at 16kHz)
+        frame_size = int(self.sample_rate * 0.03)
+        if len(float_arr) >= frame_size:
+            num_frames = len(float_arr) // frame_size
+            frames = float_arr[:num_frames * frame_size].reshape(num_frames, frame_size)
+            frame_rms = np.sqrt(np.mean(frames**2, axis=1))
+            # Human speech frames have RMS above ambient floor (>= 0.012)
+            active_speech_frames = int(np.sum(frame_rms > 0.012))
+            speech_ratio = active_speech_frames / max(1, num_frames)
+        else:
+            active_speech_frames = 0
+            speech_ratio = 0.0
+
+        # Discard if pure ambient room noise or silence
+        if max_amplitude < 600 or overall_rms < 0.005 or (len(float_arr) > self.sample_rate * 0.4 and active_speech_frames < 2):
+            print(f"[AudioRecorder] Silence detected & filtered (peak={max_amplitude:.0f}, rms={overall_rms:.4f}, speech_frames={active_speech_frames})")
             return b""
 
         # Normalize DC offset
@@ -103,7 +120,7 @@ class AudioRecorder:
         wav_io = io.BytesIO()
         with wave.open(wav_io, 'wb') as wf:
             wf.setnchannels(self.channels)
-            wf.setsampwidth(2) # 16-bit PCM
+            wf.setsampwidth(2)  # 16-bit PCM
             wf.setframerate(self.sample_rate)
             wf.writeframes(audio_data.tobytes())
 

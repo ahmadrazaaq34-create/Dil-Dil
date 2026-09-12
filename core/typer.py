@@ -6,13 +6,55 @@ import pyperclip
 
 # Windows API constants
 user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
+
 VK_CONTROL = 0x11
 VK_SHIFT = 0x10
 VK_MENU = 0x12  # Alt key
 VK_V = 0x56
 KEYEVENTF_KEYUP = 0x0002
 
+# Register Windows 10/11 Clipboard History exclusion formats
+CF_CAN_INCLUDE_IN_HISTORY = user32.RegisterClipboardFormatW("CanIncludeInClipboardHistory")
+CF_EXCLUDE_FROM_MONITOR = user32.RegisterClipboardFormatW("ExcludeClipboardContentFromMonitorProcessing")
+
+
+class ClipboardSessionGuard:
+    """
+    Session-level guard that records the user's existing clipboard data
+    before dictation starts, and ensures it is completely restored when
+    dictation finishes. Prevents DIL DIL from ever corrupting or wiping
+    out user clipboard data.
+    """
+    def __init__(self):
+        self.original_text = Typer.get_clipboard_text()
+
+    def restore(self):
+        Typer.restore_clipboard(self.original_text)
+
+
 class Typer:
+    @staticmethod
+    def get_clipboard_text():
+        """Safely captures whatever text is currently on the Windows clipboard."""
+        try:
+            return pyperclip.paste()
+        except Exception:
+            return None
+
+    @staticmethod
+    def restore_clipboard(text):
+        """Restores previously saved clipboard text, or clears it if it was empty."""
+        try:
+            if text is not None and text != "":
+                pyperclip.copy(text)
+            else:
+                if user32.OpenClipboard(None):
+                    user32.EmptyClipboard()
+                    user32.CloseClipboard()
+        except Exception:
+            pass
+
     @staticmethod
     def get_foreground_window():
         """Returns the handle of the currently focused window."""
@@ -50,15 +92,18 @@ class Typer:
                     pass
 
     @staticmethod
-    def paste_text(text: str, fallback_hwnd=None):
+    def paste_text(text: str, fallback_hwnd=None, preserve_clipboard: bool = True):
         """
         Pastes text directly at the user's active cursor.
-        Crucial: Never yanks focus away from the active foreground window
-        where the user has their cursor. Only restores fallback_hwnd if the
-        current foreground window is invalid or belongs to Wispr Flow itself.
+        1. Backs up user's existing clipboard so it is NEVER lost.
+        2. Sets Windows Clipboard History exclusion flags so Win+V is not polluted.
+        3. Simulates Ctrl+V into the active target application.
+        4. Restores the user's original clipboard immediately after pasting.
         """
         if not text:
             return
+
+        original_clipboard = Typer.get_clipboard_text() if preserve_clipboard else None
 
         current_hwnd = Typer.get_foreground_window()
         my_pid = os.getpid()
@@ -69,7 +114,7 @@ class Typer:
             fallback_pid = Typer.get_window_pid(fallback_hwnd)
             if fallback_pid and fallback_pid != my_pid:
                 Typer.restore_focus(fallback_hwnd)
-                time.sleep(0.05)
+                time.sleep(0.04)
 
         # Copy text to clipboard with retries in case clipboard is momentarily locked
         for _ in range(3):
@@ -79,6 +124,22 @@ class Typer:
             except Exception:
                 time.sleep(0.01)
         time.sleep(0.015)
+
+        # Flag clipboard content so Windows 10/11 Clipboard History (Win+V) ignores temporary paste
+        if CF_CAN_INCLUDE_IN_HISTORY:
+            try:
+                if user32.OpenClipboard(None):
+                    kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
+                    kernel32.GlobalLock.restype = ctypes.c_void_p
+                    h_mem = kernel32.GlobalAlloc(0x0002, 4)  # GMEM_MOVEABLE, sizeof(DWORD)
+                    if h_mem:
+                        ptr = kernel32.GlobalLock(h_mem)
+                        ctypes.memset(ptr, 0, 4)  # Set 0 (Do not include in history)
+                        kernel32.GlobalUnlock(h_mem)
+                        user32.SetClipboardData(CF_CAN_INCLUDE_IN_HISTORY, h_mem)
+                    user32.CloseClipboard()
+            except Exception:
+                pass
 
         # Release any lingering modifier keys (Ctrl, Shift, Alt) so Ctrl+V is clean
         user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
@@ -95,4 +156,7 @@ class Typer:
         time.sleep(0.008)
         user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
 
-
+        # Allow the receiving application to consume the clipboard data before restoring
+        if preserve_clipboard:
+            time.sleep(0.075)
+            Typer.restore_clipboard(original_clipboard)

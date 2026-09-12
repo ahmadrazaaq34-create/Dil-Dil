@@ -63,13 +63,31 @@ except Exception:
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
 from core.recorder import AudioRecorder
 from core.hotkey import HotkeyManager
 from core.gemini_engine import GeminiEngine
-from core.typer import Typer
+from core.typer import Typer, ClipboardSessionGuard
 from ui.floating_pill import FloatingPill
 from ui.main_window import MainWindow
+
+IPC_SERVER_NAME = "DIL_DIL_SINGLE_INSTANCE_IPC"
+
+def try_activate_existing_instance() -> bool:
+    """
+    Attempts to connect to an already-running DIL DIL instance via local IPC socket.
+    If running, tells it to restore and show its dashboard, and returns True.
+    """
+    socket = QLocalSocket()
+    socket.connectToServer(IPC_SERVER_NAME)
+    if socket.waitForConnected(600):
+        socket.write(b"SHOW\n")
+        socket.waitForBytesWritten(600)
+        socket.disconnectFromServer()
+        print("[DIL DIL] Existing instance active. Sent SHOW signal via local IPC.")
+        return True
+    return False
 
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 ICON_FILE = os.path.join(BASE_DIR, "assets", "app_icon.ico")
@@ -135,6 +153,9 @@ class DilDilApp:
 
         # Initialize System Tray
         self._init_tray()
+
+        # Initialize Local IPC Server for instant single instance restoration
+        self._init_ipc_server()
 
         # Start hotkey listener
         self.hotkey.start()
@@ -217,9 +238,42 @@ class DilDilApp:
         if self.tray_icon.isVisible():
             self.tray_icon.showMessage(title, message, QSystemTrayIcon.MessageIcon.Information, 2500)
 
+    def _init_ipc_server(self):
+        self.ipc_server = QLocalServer(self.qapp)
+        QLocalServer.removeServer(IPC_SERVER_NAME)
+        self.ipc_server.listen(IPC_SERVER_NAME)
+        self.ipc_server.newConnection.connect(self._on_ipc_connection)
+
+    def _on_ipc_connection(self):
+        client = self.ipc_server.nextPendingConnection()
+        if client:
+            client.readyRead.connect(lambda: self._handle_ipc_message(client))
+
+    def _handle_ipc_message(self, client):
+        try:
+            data = bytes(client.readAll()).strip()
+            if b"SHOW" in data:
+                QTimer.singleShot(0, self._show_main_window)
+        except Exception:
+            pass
+        finally:
+            client.disconnectFromServer()
+
     def _show_main_window(self):
-        self.main_window.showNormal()
+        if self.main_window.isMinimized():
+            self.main_window.showNormal()
+        else:
+            self.main_window.show()
+        self.main_window.raise_()
         self.main_window.activateWindow()
+        self.main_window.repaint()
+        try:
+            user32 = ctypes.windll.user32
+            hwnd = int(self.main_window.winId())
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            user32.SetForegroundWindow(hwnd)
+        except Exception:
+            pass
 
     def _on_config_updated(self, new_config: dict):
         self.config = new_config
@@ -276,8 +330,8 @@ class DilDilApp:
 
         print(f"[DIL DIL] Hotkey Released. Audio length: {len(wav_bytes)} bytes")
 
-        if not wav_bytes or len(wav_bytes) < 2000:
-            print("[DIL DIL] Audio too short (<0.06s), dismissing.")
+        if not wav_bytes or len(wav_bytes) < 6000:
+            print("[DIL DIL] Silence detected (<0.18s or silence VAD), dismissing without pasting.")
             self.pill.hide_pill()
             trim_memory()
             return
@@ -298,9 +352,9 @@ class DilDilApp:
         """
         Transcribes audio with Gemini via generate_content_stream.
         Pastes each sentence progressively at the user's cursor as soon as it arrives!
-        Sends strictly live audio to prevent reference audio confusion ("1 2 3 4 5 6" bug)
-        and conserve 100% of API token quota.
+        Safeguards and restores the user's original clipboard with 100% fidelity.
         """
+        clipboard_guard = ClipboardSessionGuard()
         sentence_count = 0
         target_lang = self.config.get("target_language", "english")
 
@@ -316,7 +370,7 @@ class DilDilApp:
             sentence_count += 1
 
             print(f"[DIL DIL] Pasting Sentence {sentence_count}: \"{sentence_text}\"")
-            Typer.paste_text(prefix + sentence_text, fallback_hwnd=target_hwnd)
+            Typer.paste_text(prefix + sentence_text, fallback_hwnd=target_hwnd, preserve_clipboard=True)
 
         try:
             full_text = self.gemini.process_audio_stream(
@@ -336,6 +390,10 @@ class DilDilApp:
                 print(f"[DIL DIL Error] Session {session_id} failed: {e}")
                 self.pill.show_error(str(e))
         finally:
+            try:
+                clipboard_guard.restore()
+            except Exception:
+                pass
             trim_memory()
 
     def _exit_app(self):
@@ -347,28 +405,9 @@ class DilDilApp:
         self.pill.close()
         self.qapp.quit()
 
-_MUTEX_HANDLE = None
-
-def check_single_instance() -> bool:
-    global _MUTEX_HANDLE
-    try:
-        kernel32 = ctypes.windll.kernel32
-        _MUTEX_HANDLE = kernel32.CreateMutexW(None, False, "Local\\DIL_DIL_VOICE_ASSISTANT_MUTEX")
-        if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-            user32 = ctypes.windll.user32
-            hwnd = user32.FindWindowW(None, "DIL DIL")
-            if hwnd:
-                print("[DIL DIL] Existing instance active. Bringing to front.")
-                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-                user32.SetForegroundWindow(hwnd)
-                return False
-            # If no window handle was found, allow this process to launch UI so user is never locked out
-    except Exception as e:
-        print(f"[DIL DIL] Mutex check note: {e}")
-    return True
-
 def main():
-    if not check_single_instance():
+    # If an existing instance is already running, activate it via IPC and exit immediately
+    if try_activate_existing_instance():
         sys.exit(0)
 
     qapp = QApplication(sys.argv)

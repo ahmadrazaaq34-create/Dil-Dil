@@ -1,12 +1,13 @@
 import os
 import json
 import webbrowser
+from ctypes import wintypes
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QLineEdit, QFrame, QMessageBox, QStackedWidget,
     QCheckBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QEvent, QTimer
 from PyQt6.QtGui import QPixmap
 
 class MainWindow(QMainWindow):
@@ -161,6 +162,8 @@ class MainWindow(QMainWindow):
 
     def _init_ui(self):
         self.stack = QStackedWidget(self)
+        self.stack.setStyleSheet("background-color: #070a0e; border: none;")
+        self.stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setCentralWidget(self.stack)
 
         # Page 0: First-time Onboarding (shown if no API key)
@@ -176,6 +179,8 @@ class MainWindow(QMainWindow):
 
     def _create_onboarding_page(self) -> QWidget:
         page = QWidget()
+        page.setStyleSheet("background-color: #070a0e;")
+        page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(12)
@@ -227,6 +232,8 @@ class MainWindow(QMainWindow):
 
     def _create_dashboard_page(self) -> QWidget:
         page = QWidget()
+        page.setStyleSheet("background-color: #070a0e;")
+        page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         layout = QVBoxLayout(page)
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(8)
@@ -533,6 +540,32 @@ class MainWindow(QMainWindow):
             if self.on_quit:
                 self.on_quit()
             event.accept()
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.Type.WindowStateChange:
+            if self.isMinimized() and self.config.get("minimize_to_tray", True):
+                event.ignore()
+                QTimer.singleShot(0, self._hide_to_tray)
+                return
+            elif not self.isMinimized():
+                self.update()
+                self.repaint()
+        super().changeEvent(event)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.update()
+        self.repaint()
+
+    def nativeEvent(self, event_type, message):
+        try:
+            msg = wintypes.MSG.from_address(message.__int__())
+            # 0x0018 = WM_SHOWWINDOW, 0x0006 = WM_ACTIVATE
+            if msg.message in (0x0018, 0x0006) and msg.wParam:
+                QTimer.singleShot(0, self.repaint)
+        except Exception:
+            pass
+        return super().nativeEvent(event_type, message)
 
     def update_active_model_badge(self, model_name: str):
         # Model updates silently in background without cluttering UI
