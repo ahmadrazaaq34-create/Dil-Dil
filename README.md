@@ -12,6 +12,7 @@
 [![Google Gemini](https://img.shields.io/badge/AI-Google%20Gemini%20Flash-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://aistudio.google.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://microsoft.com)
+[![macOS & Linux Support](https://img.shields.io/badge/macOS%20%26%20Linux-Porting%20Guide%20Included-orange?style=for-the-badge)](PORTING_GUIDE.md)
 [![Made with Pride in Pakistan](https://img.shields.io/badge/Made%20in-Pakistan%20🇵🇰-01411C?style=for-the-badge)](https://en.wikipedia.org/wiki/Pakistan)
 
 </div>
@@ -20,7 +21,7 @@
 
 ## 🌟 Why DIL DIL?
 
-**DIL DIL** is an ultra-lightweight, zero-bloat desktop voice dictation assistant built specifically for Windows. Inspired by **Wispr Flow** and **Superwhisper**, DIL DIL brings real-time, push-to-talk voice typing to every single application on your computer—**100% free forever** with **zero subscription fees**.
+**DIL DIL** is an ultra-lightweight, zero-bloat desktop voice dictation assistant built natively for Windows (with a turnkey [macOS & Linux Porting Guide](PORTING_GUIDE.md) included). Inspired by **Wispr Flow** and **Superwhisper**, DIL DIL brings real-time, push-to-talk voice typing to every single application on your computer—**100% free forever** with **zero subscription fees**.
 
 Whether you're writing code in VS Code, drafting emails in Gmail, chatting on WhatsApp, or taking notes in Notion, just hold your hotkey, speak naturally, and let DIL DIL type for you.
 
@@ -47,7 +48,7 @@ Whether you're writing code in VS Code, drafting emails in Gmail, chatting on Wh
 | Feature | **DIL DIL** 🇵🇰 | **Wispr Flow** | **Superwhisper** |
 | :--- | :---: | :---: | :---: |
 | **Price** | **100% Free** | $12–$15 / month | $8–$10 / month |
-| **Platform** | **Windows 10 / 11** | Mac / Windows | macOS-focused |
+| **Platform** | **Windows 10 / 11** *(+ Mac/Linux Guide)* | Mac / Windows | macOS-focused |
 | **RAM Consumption** | **~27 MB** (Native) | ~350 MB (Electron) | ~180 MB |
 | **Sentence Streaming** | ✅ **Yes** | ✅ Yes | ❌ Batch only |
 | **Urdu & Roman Urdu** | ✅ **Native** | ⚠️ Partial | ❌ Poor |
@@ -59,7 +60,7 @@ Whether you're writing code in VS Code, drafting emails in Gmail, chatting on Wh
 ## 🚀 Quickstart & Installation
 
 ### 1. Prerequisites
-- **Windows 10 or 11**
+- **Windows 10 or 11** *(For macOS or Linux users, see the [Porting Guide](PORTING_GUIDE.md))*
 - **Python 3.10+** ([Download Python](https://www.python.org/downloads/))
 - A free **Google Gemini API Key** ([Get your free key from Google AI Studio](https://aistudio.google.com/app/apikey))
 
@@ -77,6 +78,30 @@ pip install -r requirements.txt
 ### 4. Run DIL DIL
 ```bash
 python main.py
+```
+
+---
+
+## 🍎 macOS & 🐧 Linux Support (AI-Ready Porting)
+
+While DIL DIL currently ships ready-to-run for **Windows 10 & 11**, over **95% of the codebase** (PyQt6 UI, Gemini Flash streaming engine, Voice Activity Detection, audio recording, and fast network routing) is **completely platform-independent**.
+
+If you are on **macOS** or **Linux**, you can adapt the 3 Windows-specific files (`core/hotkey.py`, `core/typer.py`, and `main.py`) in less than 2 minutes using **any AI chatbot** (ChatGPT, Claude, Gemini, or Antigravity):
+
+👉 **[Read the complete Step-by-Step Porting Guide](PORTING_GUIDE.md)**
+
+### Instant AI Conversion Prompt:
+Simply copy and paste this into Claude, ChatGPT, or Gemini:
+
+```text
+I am running on [macOS / Linux]. I have cloned DIL DIL (https://github.com/ahmadrazaaq34-create/Dil-Dil).
+
+The app currently uses Windows Win32 APIs in 3 files:
+1. `core/hotkey.py`: Adapt to use pure `pynput` for cross-platform hotkey polling.
+2. `core/typer.py`: Adapt for [macOS: Cmd+V via pynput/AppleScript] OR [Linux: Ctrl+V via xdotool/pynput].
+3. `main.py`: Replace Win32 named mutex with standard POSIX lockfile (fcntl).
+
+Please convert these 3 files for my OS while keeping the exact PyQt6 floating UI and Gemini Flash streaming intact.
 ```
 
 ---
@@ -116,6 +141,7 @@ Dil-Dil/
 ├── main.py                  # Process entry point, mutex & memory trimmer
 ├── requirements.txt         # Core Python dependencies
 ├── config.example.json      # Safe configuration template
+├── PORTING_GUIDE.md         # Turnkey macOS & Linux adaptation guide for AI / devs
 └── README.md
 ```
 
