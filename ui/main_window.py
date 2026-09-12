@@ -555,17 +555,6 @@ class MainWindow(QMainWindow):
     def showEvent(self, event):
         super().showEvent(event)
         self.update()
-        self.repaint()
-
-    def nativeEvent(self, event_type, message):
-        try:
-            msg = wintypes.MSG.from_address(message.__int__())
-            # 0x0018 = WM_SHOWWINDOW, 0x0006 = WM_ACTIVATE
-            if msg.message in (0x0018, 0x0006) and msg.wParam:
-                QTimer.singleShot(0, self.repaint)
-        except Exception:
-            pass
-        return super().nativeEvent(event_type, message)
 
     def update_active_model_badge(self, model_name: str):
         # Model updates silently in background without cluttering UI
