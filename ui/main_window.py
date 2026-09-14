@@ -395,6 +395,7 @@ class MainWindow(QMainWindow):
         model_title.setStyleSheet("color: #e2e8f0; font-size: 11px; font-weight: 600;")
         model_layout.addWidget(model_title)
 
+        self.model_combo = QComboBox()
         self.model_options = [
             ("⚡ Gemini 3.5 Flash Lite (Fastest & Best - Default)", "gemini-3.5-flash-lite"),
             ("⚡ Gemini Flash Lite (Ultra Fast)", "gemini-flash-lite-latest"),
