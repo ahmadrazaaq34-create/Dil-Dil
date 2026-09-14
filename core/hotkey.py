@@ -115,6 +115,13 @@ class HotkeyManager:
         Provides 100% reliable detection even if hooks are delayed or blocked by elevated windows.
         Debounces release by requiring 6 consecutive unheld ticks (~90ms) to eliminate transient glitches.
         """
+        try:
+            h_desk = user32.OpenDesktopW("Default", 0, False, 0x01FF)
+            if h_desk:
+                user32.SetThreadDesktop(h_desk)
+        except Exception:
+            pass
+
         consecutive_unheld = 0
         consecutive_held = 0
 
