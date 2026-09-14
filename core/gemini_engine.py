@@ -52,9 +52,9 @@ class GeminiEngine:
         "indonesian": "Indonesian (Bahasa Indonesia)"
     }
 
-    FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-flash-latest", "gemini-3.5-flash"]
+    FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-flash-latest", "gemini-3.5-flash"]
 
-    def __init__(self, api_key: str = "", model_name: str = "gemini-flash-lite-latest", on_model_changed=None, manual_override: bool = True):
+    def __init__(self, api_key: str = "", model_name: str = "gemini-3.5-flash-lite", on_model_changed=None, manual_override: bool = True):
         self.api_key = api_key
         self.model_name = model_name
         self.on_model_changed = on_model_changed
