@@ -112,23 +112,6 @@ from ui.main_window import MainWindow
 
 IPC_SERVER_NAME = "DIL_DIL_SINGLE_INSTANCE_IPC"
 
-def try_activate_existing_instance() -> bool:
-    """
-    Attempts to connect to an already-running DIL DIL instance via local IPC socket.
-    If running, tells it to restore and show its dashboard, and returns True.
-    """
-    socket = QLocalSocket()
-    socket.connectToServer(IPC_SERVER_NAME)
-    if socket.waitForConnected(600):
-        try:
-            ctypes.windll.user32.AllowSetForegroundWindow(-1)
-        except Exception:
-            pass
-        socket.disconnectFromServer()
-        print("[DIL DIL] Existing instance active. Triggered restore signal.")
-        return True
-    return False
-
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 ICON_FILE = os.path.join(BASE_DIR, "assets", "app_icon.ico")
 EMBLEM_ICO_FILE = os.path.join(BASE_DIR, "assets", "dil_dil_v2.ico")
@@ -467,10 +450,6 @@ def ensure_default_desktop():
 
 def main():
     ensure_default_desktop()
-
-    # If an existing instance is already running, activate it via IPC and exit immediately
-    if try_activate_existing_instance():
-        sys.exit(0)
 
     qapp = QApplication(sys.argv)
     qapp.setQuitOnLastWindowClosed(False)
