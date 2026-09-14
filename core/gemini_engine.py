@@ -52,15 +52,25 @@ class GeminiEngine:
         "indonesian": "Indonesian (Bahasa Indonesia)"
     }
 
-    FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-flash-latest"]
+    FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-flash-latest", "gemini-3.5-flash"]
 
-    def __init__(self, api_key: str = "", model_name: str = "gemini-3.5-flash", on_model_changed=None):
+    def __init__(self, api_key: str = "", model_name: str = "gemini-flash-lite-latest", on_model_changed=None, manual_override: bool = True):
         self.api_key = api_key
         self.model_name = model_name
         self.on_model_changed = on_model_changed
+        self._manual_model_override = manual_override
         self._client = None
         if self.api_key:
             self._init_client()
+
+    def set_model(self, model_name: str, manual: bool = True):
+        """Sets the active model. If manual=True, prevents auto-discovery from overriding user's choice."""
+        clean_model = model_name.strip()
+        if clean_model:
+            self.model_name = clean_model
+            if manual:
+                self._manual_model_override = True
+            print(f"[GeminiEngine] Active model set to: {self.model_name} (Manual override: {manual})")
 
     def set_api_key(self, api_key: str):
         self.api_key = api_key.strip()
@@ -69,8 +79,9 @@ class GeminiEngine:
     def _init_client(self):
         try:
             self._client = genai.Client(api_key=self.api_key)
-            # Automatically start background check for the latest Gemini model
-            self.discover_latest_model_async(self.on_model_changed)
+            # Automatically start background check for the latest Gemini model only if not manually locked
+            if not self._manual_model_override:
+                self.discover_latest_model_async(self.on_model_changed)
         except Exception as e:
             self._client = None
             raise RuntimeError(f"Failed to initialize Gemini Client: {e}")
@@ -84,10 +95,12 @@ class GeminiEngine:
         Runs in the background without blocking the UI or audio streaming.
         Validates model availability and seamlessly sets the newest active model.
         """
-        if not self.is_configured():
+        if not self.is_configured() or self._manual_model_override:
             return
 
         def _worker():
+            if self._manual_model_override:
+                return
             try:
                 models_list = list(self._client.models.list())
                 

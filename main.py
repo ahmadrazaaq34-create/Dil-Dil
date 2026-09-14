@@ -153,7 +153,7 @@ class DilDilApp:
 
         # Initialize Gemini Engine with dynamic model auto-discovery
         api_key = self.config.get("gemini_api_key", "")
-        active_model = self.config.get("active_model", "gemini-3.5-flash")
+        active_model = self.config.get("active_model", "gemini-flash-lite-latest")
         self.gemini = GeminiEngine(
             api_key=api_key,
             model_name=active_model,
@@ -312,10 +312,12 @@ class DilDilApp:
     def _on_config_updated(self, new_config: dict):
         self.config = new_config
         self.gemini.set_api_key(new_config.get("gemini_api_key", ""))
+        new_model = new_config.get("active_model", "gemini-flash-lite-latest")
+        self.gemini.set_model(new_model, manual=True)
         new_hk = new_config.get("hotkey", "ctrl+shift")
         self.hotkey.set_hotkey(new_hk)
         self.tray_icon.setToolTip(f"DIL DIL (Hold {new_hk.upper()})")
-        print(f"[DIL DIL] Configuration updated: Hotkey={new_hk}, Lang={new_config.get('target_language')}")
+        print(f"[DIL DIL] Configuration updated: Hotkey={new_hk}, Lang={new_config.get('target_language')}, Model={new_model}")
 
     def _on_audio_amplitude(self, amp: float):
         self.pill.update_amplitude_signal.emit(amp)

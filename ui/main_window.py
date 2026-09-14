@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
                 pass
         return {
             "gemini_api_key": "",
+            "active_model": "gemini-flash-lite-latest",
             "hotkey": "ctrl+shift",
             "target_language": "english",
             "minimize_to_tray": True
@@ -46,7 +47,7 @@ class MainWindow(QMainWindow):
 
     def _init_window(self):
         self.setWindowTitle("DIL DIL")
-        self.setFixedSize(540, 285)
+        self.setFixedSize(550, 335)
 
         self.setWindowFlags(
             Qt.WindowType.Window |
@@ -383,6 +384,54 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(settings_row)
 
+        # AI Model Selection Card (Horizontal Bar)
+        model_card = QFrame()
+        model_card.setStyleSheet("background-color: #0d131a; border: 1px solid #16261e; border-radius: 8px;")
+        model_layout = QHBoxLayout(model_card)
+        model_layout.setContentsMargins(10, 6, 10, 6)
+        model_layout.setSpacing(6)
+
+        model_title = QLabel("AI Model:")
+        model_title.setStyleSheet("color: #e2e8f0; font-size: 11px; font-weight: 600;")
+        model_layout.addWidget(model_title)
+
+        self.model_options = [
+            ("⚡ Gemini Flash Lite (Ultra Fast - Default)", "gemini-flash-lite-latest"),
+            ("⚡ Gemini 3.5 Flash Lite (Next-Gen Lite)", "gemini-3.5-flash-lite"),
+            ("⚡ Gemini 3.5 Flash (Ultra Stable)", "gemini-3.5-flash"),
+            ("⚡ Gemini 3.8 Flash (Latest Preview)", "gemini-3.8-flash"),
+            ("🧠 Gemini 3.7 Flash (Thinking & Reasoning)", "gemini-3.7-flash"),
+            ("⚡ Gemini 3.6 Flash (High Speed)", "gemini-3.6-flash"),
+            ("🌐 Gemini Flash (Production Default)", "gemini-flash-latest"),
+            ("Custom Model ID...", "custom")
+        ]
+        for display_name, val in self.model_options:
+            self.model_combo.addItem(display_name, val)
+
+        current_model = self.config.get("active_model", "gemini-flash-lite-latest").strip()
+        matched_model_idx = -1
+        for i in range(self.model_combo.count() - 1):
+            if self.model_combo.itemData(i) == current_model:
+                matched_model_idx = i
+                break
+
+        if matched_model_idx >= 0:
+            self.model_combo.setCurrentIndex(matched_model_idx)
+        else:
+            self.model_combo.setCurrentIndex(self.model_combo.count() - 1)
+
+        self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
+        model_layout.addWidget(self.model_combo, 1)
+
+        self.custom_model_input = QLineEdit()
+        self.custom_model_input.setPlaceholderText("e.g. gemini-2.5-flash")
+        self.custom_model_input.setText(current_model if matched_model_idx < 0 else "")
+        self.custom_model_input.setVisible(matched_model_idx < 0)
+        self.custom_model_input.editingFinished.connect(self._on_custom_model_submitted)
+        model_layout.addWidget(self.custom_model_input, 1)
+
+        layout.addWidget(model_card)
+
         # API Key Card (Horizontal Bar)
         api_card = QFrame()
         api_card.setStyleSheet("background-color: #0d131a; border: 1px solid #16261e; border-radius: 8px;")
@@ -545,6 +594,42 @@ class MainWindow(QMainWindow):
         super().showEvent(event)
         self.update()
 
+    def _on_model_combo_changed(self):
+        val = self.model_combo.currentData()
+        if val == "custom":
+            self.custom_model_input.setVisible(True)
+            self.custom_model_input.setFocus()
+        else:
+            self.custom_model_input.setVisible(False)
+            self.config["active_model"] = val
+            self._save_config()
+            if self.on_config_updated:
+                self.on_config_updated(self.config)
+
+    def _on_custom_model_submitted(self):
+        val = self.custom_model_input.text().strip()
+        if val:
+            self.config["active_model"] = val
+            self._save_config()
+            if self.on_config_updated:
+                self.on_config_updated(self.config)
+
     def update_active_model_badge(self, model_name: str):
-        # Model updates silently in background without cluttering UI
-        pass
+        # Synchronize combo box selection if model was updated or auto-discovered
+        clean_name = model_name.strip()
+        matched = False
+        for i in range(self.model_combo.count() - 1):
+            if self.model_combo.itemData(i) == clean_name:
+                self.model_combo.blockSignals(True)
+                self.model_combo.setCurrentIndex(i)
+                self.model_combo.blockSignals(False)
+                self.custom_model_input.setVisible(False)
+                matched = True
+                break
+        if not matched:
+            self.model_combo.blockSignals(True)
+            self.model_combo.setCurrentIndex(self.model_combo.count() - 1)
+            self.model_combo.blockSignals(False)
+            self.custom_model_input.setText(clean_name)
+            self.custom_model_input.setVisible(True)
+
