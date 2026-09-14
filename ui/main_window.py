@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
                 pass
         return {
             "gemini_api_key": "",
-            "active_model": "gemini-3.5-flash-lite",
+            "active_model": "gemini-3.8-flash",
             "hotkey": "ctrl+shift",
             "target_language": "english",
             "minimize_to_tray": True
@@ -397,19 +397,18 @@ class MainWindow(QMainWindow):
 
         self.model_combo = QComboBox()
         self.model_options = [
-            ("⚡ Gemini 3.5 Flash Lite (Fastest & Best - Default)", "gemini-3.5-flash-lite"),
-            ("⚡ Gemini Flash Lite (Ultra Fast)", "gemini-flash-lite-latest"),
-            ("⚡ Gemini 3.5 Flash (Ultra Stable)", "gemini-3.5-flash"),
-            ("⚡ Gemini 3.8 Flash (Latest Preview)", "gemini-3.8-flash"),
-            ("🧠 Gemini 3.7 Flash (Thinking & Reasoning)", "gemini-3.7-flash"),
-            ("⚡ Gemini 3.6 Flash (High Speed)", "gemini-3.6-flash"),
-            ("🌐 Gemini Flash (Production Default)", "gemini-flash-latest"),
+            ("⚡ Gemini Flash Lite (Fastest - Instant Response)", "gemini-flash-lite-latest"),
+            ("🎯 Gemini Flash (High Accuracy & Stable - Recommended)", "gemini-flash-latest"),
+            ("⚡ Gemini 3.6 Flash (High Intelligence)", "gemini-3.6-flash"),
+            ("⚡ Gemini 3.5 Flash (Standard)", "gemini-3.5-flash"),
+            ("⚡ Gemini 3.8 Flash (Preview)", "gemini-3.8-flash"),
+            ("🧠 Gemini 3.7 Flash (Reasoning)", "gemini-3.7-flash"),
             ("Custom Model ID...", "custom")
         ]
         for display_name, val in self.model_options:
             self.model_combo.addItem(display_name, val)
 
-        current_model = self.config.get("active_model", "gemini-3.5-flash-lite").strip()
+        current_model = self.config.get("active_model", "gemini-3.8-flash").strip()
         matched_model_idx = -1
         for i in range(self.model_combo.count() - 1):
             if self.model_combo.itemData(i) == current_model:

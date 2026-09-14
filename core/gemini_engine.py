@@ -52,9 +52,9 @@ class GeminiEngine:
         "indonesian": "Indonesian (Bahasa Indonesia)"
     }
 
-    FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-flash-latest", "gemini-3.5-flash"]
+    FALLBACK_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.6-flash"]
 
-    def __init__(self, api_key: str = "", model_name: str = "gemini-3.5-flash-lite", on_model_changed=None, manual_override: bool = True):
+    def __init__(self, api_key: str = "", model_name: str = "gemini-3.5-flash", on_model_changed=None, manual_override: bool = True):
         self.api_key = api_key
         self.model_name = model_name
         self.on_model_changed = on_model_changed
@@ -188,13 +188,15 @@ class GeminiEngine:
             )
         elif lang_key == "roman_urdu":
             return (
-                "You are an expert voice transcriber for Roman Urdu (Urdu written in English Latin alphabet).\n"
-                "The user is speaking in Pakistani Urdu.\n"
+                "You are an expert voice transcriber for Roman Urdu (Urdu written phonetically in English Latin alphabet).\n"
+                "The user is speaking in conversational Pakistani Urdu / Hindi.\n"
                 "Task:\n"
-                "1. Transcribe the speech phonetically into standard, clean Roman Urdu.\n"
-                "2. Remove filler sounds.\n"
-                "3. STRICT FIDELITY: Transcribe only what was actually spoken. If silent, output nothing.\n"
-                "4. OUTPUT RULE: Output ONLY the Roman Urdu text."
+                "1. Transcribe the spoken audio accurately into natural, readable, conversational Roman Urdu.\n"
+                "2. Standardize common Roman Urdu spellings (e.g. 'kya', 'hai', 'nahi', 'karna', 'aap', 'kaise', 'theek', 'lekin', 'kyunke').\n"
+                "3. Preserve common English words naturally in Latin letters (e.g. 'work', 'fast', 'system', 'app', 'button', 'video').\n"
+                "4. Remove vocal fillers like 'uh', 'um', 'aaa'.\n"
+                "5. STRICT FIDELITY: Transcribe only what was actually spoken. Never fabricate unsaid words.\n"
+                "6. OUTPUT RULE: Output ONLY the transcribed Roman Urdu text. No quotation marks or headers."
                 + base_negative_rules
             )
         elif lang_key == "english":
@@ -357,7 +359,9 @@ class GeminiEngine:
                 err_str = str(e).lower()
                 if "429" in err_str or "resource_exhausted" in err_str or "quota" in err_str:
                     continue
-                if "503" in err_str or "not found" in err_str or "unavailable" in err_str:
+                if "503" in err_str or "not found" in err_str or "unavailable" in err_str or "capacity" in err_str:
+                    continue
+                if "disconnect" in err_str or "socket" in err_str or "connection" in err_str or "timed out" in err_str:
                     continue
                 raise e
 
