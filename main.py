@@ -9,6 +9,41 @@ import gc
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
 
+def fast_activate_existing_instance() -> bool:
+    """
+    Instantly checks if an instance of DIL DIL is already running via native named pipe in <2ms.
+    If running, immediately unhides and brings the window to the foreground without
+    importing heavy Python libraries, making desktop shortcut / reopen instant (<40ms).
+    """
+    try:
+        h_desk = user32.OpenDesktopW("Default", 0, False, 0x01FF)
+        if h_desk:
+            user32.SetThreadDesktop(h_desk)
+
+        pipe_path = r"\\.\pipe\DIL_DIL_SINGLE_INSTANCE_IPC"
+        h_pipe = kernel32.CreateFileW(pipe_path, 0xC0000000, 0, None, 3, 0, None)
+        if h_pipe != -1 and h_pipe != 0:
+            kernel32.CloseHandle(h_pipe)
+            hwnd = user32.FindWindowW(None, "DIL DIL")
+            if hwnd:
+                user32.ShowWindow(hwnd, 1)  # SW_SHOWNORMAL
+                user32.ShowWindow(hwnd, 5)  # SW_SHOW
+                user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040)
+                user32.SetForegroundWindow(hwnd)
+                user32.BringWindowToTop(hwnd)
+                try:
+                    user32.AllowSetForegroundWindow(-1)
+                except Exception:
+                    pass
+            return True
+    except Exception:
+        pass
+    return False
+
+# If another instance is running, activate it immediately and exit before importing heavy packages
+if __name__ == "__main__" and fast_activate_existing_instance():
+    sys.exit(0)
+
 def trim_memory():
     """Trims inactive memory pages on Windows to keep DIL DIL ultra-lightweight (<30 MB)."""
     try:
@@ -135,7 +170,7 @@ class DilDilApp:
 
         # Initialize Gemini Engine with dynamic model auto-discovery
         api_key = self.config.get("gemini_api_key", "")
-        active_model = self.config.get("active_model", "gemini-flash-lite-latest")
+        active_model = self.config.get("active_model", "gemini-3.5-flash")
         self.gemini = GeminiEngine(
             api_key=api_key,
             model_name=active_model,

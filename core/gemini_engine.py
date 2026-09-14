@@ -6,8 +6,8 @@ from google import genai
 from google.genai import types
 from core.network import setup_fast_network
 
-# Activate fast IPv4 routing to eliminate the 15-35s timeout
-setup_fast_network()
+# Activate fast IPv4 routing asynchronously in background to eliminate blocking import
+threading.Thread(target=setup_fast_network, daemon=True).start()
 
 # Regex to strip emojis completely (carefully scoped ranges — must NOT touch
 # CJK / Arabic / Devanagari / Cyrillic text, only actual emoji blocks)
@@ -52,9 +52,9 @@ class GeminiEngine:
         "indonesian": "Indonesian (Bahasa Indonesia)"
     }
 
-    FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash"]
+    FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-flash-latest"]
 
-    def __init__(self, api_key: str = "", model_name: str = "gemini-flash-lite-latest", on_model_changed=None):
+    def __init__(self, api_key: str = "", model_name: str = "gemini-3.5-flash", on_model_changed=None):
         self.api_key = api_key
         self.model_name = model_name
         self.on_model_changed = on_model_changed
@@ -80,7 +80,7 @@ class GeminiEngine:
 
     def discover_latest_model_async(self, on_discovered=None):
         """
-        Asynchronously queries Google Gemini API to discover the newest available Flash model.
+        Asynchronously queries Google Gemini API to discover the fastest available Flash model.
         Runs in the background without blocking the UI or audio streaming.
         Validates model availability and seamlessly sets the newest active model.
         """
@@ -93,20 +93,28 @@ class GeminiEngine:
                 
                 def rank_model(name: str):
                     n = name.lower()
-                    if any(x in n for x in ['tts', 'image', 'imagen', 'embed', 'computer-use']):
+                    # Filter out unsupported / non-speech generation modalities
+                    if any(x in n for x in ['tts', 'image', 'imagen', 'embed', 'computer-use', 'preview', 'native-audio']):
                         return (-1, 0, 0)
-                    # Prefer official Google production alias for lowest latency
-                    if 'flash-lite-latest' in n:
-                        return (1000, 2, 0)
-                    if 'flash-latest' in n:
-                        return (900, 1, 0)
-                    # Next prefer version-numbered models (e.g. 3.8, 3.7)
-                    m = re.search(r'gemini-(\d+)(?:\.(\d+))?-flash(?:-lite)?', n)
+                    # Filter out models currently exhibiting 503 high demand or timeouts
+                    if 'gemini-3.7' in n or 'gemini-3.8' in n:
+                        return (-1, 0, 0)
+                    # Highest priority: Gemini 3.5 & 3.6 Flash (empirically sub-2s streaming)
+                    if 'gemini-3.5-flash' in n and 'lite' not in n:
+                        return (1000, 0, 0)
+                    if 'gemini-3.6-flash' in n and 'lite' not in n:
+                        return (900, 0, 0)
+                    # Production generic flash alias
+                    if 'flash-latest' in n and 'lite' not in n:
+                        return (500, 0, 0)
+                    # Deprioritize lite models due to server-side free tier queueing (18s+ delays)
+                    if 'lite' in n:
+                        return (10, 0, 0)
+                    m = re.search(r'gemini-(\d+)(?:\.(\d+))?-flash', n)
                     if m:
                         major = int(m.group(1))
                         minor = int(m.group(2) or 0)
-                        is_lite = 1 if 'lite' in n else 0
-                        return (major * 10 + minor, is_lite, 0)
+                        return (major * 10 + minor, 0, 0)
                     return (0, 0, 0)
 
                 candidates = []
