@@ -52,9 +52,9 @@ class GeminiEngine:
         "indonesian": "Indonesian (Bahasa Indonesia)"
     }
 
-    FALLBACK_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.6-flash"]
+    FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash-lite-preview-02-05", "gemini-1.5-flash"]
 
-    def __init__(self, api_key: str = "", model_name: str = "gemini-3.5-flash", on_model_changed=None, manual_override: bool = True):
+    def __init__(self, api_key: str = "", model_name: str = "gemini-2.0-flash-lite-preview-02-05", on_model_changed=None, manual_override: bool = True):
         self.api_key = api_key
         self.model_name = model_name
         self.on_model_changed = on_model_changed
@@ -107,22 +107,24 @@ class GeminiEngine:
                 def rank_model(name: str):
                     n = name.lower()
                     # Filter out unsupported / non-speech generation modalities
-                    if any(x in n for x in ['tts', 'image', 'imagen', 'embed', 'computer-use', 'preview', 'native-audio']):
+                    if any(x in n for x in ['tts', 'image', 'imagen', 'embed', 'computer-use', 'native-audio']):
                         return (-1, 0, 0)
-                    # Filter out models currently exhibiting 503 high demand or timeouts
-                    if 'gemini-3.7' in n or 'gemini-3.8' in n:
-                        return (-1, 0, 0)
-                    # Highest priority: Gemini 3.5 & 3.6 Flash (empirically sub-2s streaming)
-                    if 'gemini-3.5-flash' in n and 'lite' not in n:
+
+                    # Highest priority: Gemini 2.0 Flash Lite and 2.5 Flash
+                    if 'gemini-2.0-flash-lite' in n:
                         return (1000, 0, 0)
-                    if 'gemini-3.6-flash' in n and 'lite' not in n:
+                    if 'gemini-2.5-flash' in n:
                         return (900, 0, 0)
+                    if 'gemini-2.0-flash' in n and 'lite' not in n:
+                        return (800, 0, 0)
+
                     # Production generic flash alias
                     if 'flash-latest' in n and 'lite' not in n:
                         return (500, 0, 0)
-                    # Deprioritize lite models due to server-side free tier queueing (18s+ delays)
-                    if 'lite' in n:
-                        return (10, 0, 0)
+                    # Allow 1.5 flash
+                    if 'gemini-1.5-flash' in n:
+                        return (400, 0, 0)
+
                     m = re.search(r'gemini-(\d+)(?:\.(\d+))?-flash', n)
                     if m:
                         major = int(m.group(1))
@@ -162,10 +164,18 @@ class GeminiEngine:
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _get_system_instruction(self, target_lang: str) -> str:
+    def _get_system_instruction(self, target_lang: str, tone: str = "normal") -> str:
         lang_key = target_lang.lower().strip()
 
-        base_negative_rules = (
+        tone_instruction = ""
+        if tone == "professional":
+            tone_instruction = "\nTONE: Maintain a professional, formal, and polite tone. Avoid overly casual language or slang."
+        elif tone == "concise":
+            tone_instruction = "\nTONE: Be as concise and brief as possible. Get straight to the point without filler words."
+        elif tone == "markdown":
+            tone_instruction = "\nTONE: Format the output using clean, readable Markdown where appropriate (e.g., lists, bold text)."
+
+        base_negative_rules = tone_instruction + (
             "\nCRITICAL SPEAKER & SILENCE RULES (STRICT):\n"
             "- MANDATORY SILENCE FILTER: If the user did not speak any clear, intelligible words, or if there is only silence, breathing, background noise, clicks, or hum, you MUST return ABSOLUTELY NOTHING. Return an empty string \"\".\n"
             "- NEVER GUESS OR HALLUCINATE: Never invent, guess, fabricate, or autocomplete conversational sentences (such as scheduling meetings, phone calls, greetings, or project tasks) if they were not explicitly spoken in this audio.\n"
@@ -257,7 +267,7 @@ class GeminiEngine:
         cleaned = re.sub(r' +', ' ', cleaned)
         return cleaned.strip()
 
-    def process_audio(self, wav_bytes: bytes, target_lang: str = "english", retry_count: int = 2) -> str:
+    def process_audio(self, wav_bytes: bytes, target_lang: str = "english", retry_count: int = 2, tone: str = "normal", context_text: str = "") -> str:
         """
         Sends audio WAV bytes to Gemini Flash and translates/transcribes into target_lang.
         Filters out any emojis, simulation codes, or unwanted artifacts.
@@ -265,10 +275,10 @@ class GeminiEngine:
         collected = []
         def _collect(s):
             collected.append(s)
-        self.process_audio_stream(wav_bytes, target_lang=target_lang, on_sentence=_collect)
+        self.process_audio_stream(wav_bytes, target_lang=target_lang, on_sentence=_collect, tone=tone, context_text=context_text)
         return " ".join(collected).strip()
 
-    def process_audio_stream(self, wav_bytes: bytes, target_lang: str = "english", on_sentence=None, voice_profile_bytes: bytes = None) -> str:
+    def process_audio_stream(self, wav_bytes: bytes, target_lang: str = "english", on_sentence=None, voice_profile_bytes: bytes = None, tone: str = "normal", context_text: str = "") -> str:
         """
         Streams audio transcription/translation from Gemini.
         Focuses strictly on the foreground microphone speaker and eliminates background chatter.
@@ -280,7 +290,7 @@ class GeminiEngine:
         if not wav_bytes or len(wav_bytes) < 2000:
             return ""
 
-        system_instruction = self._get_system_instruction(target_lang)
+        system_instruction = self._get_system_instruction(target_lang, tone)
         audio_part = types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav")
 
         prompt = (
@@ -288,6 +298,10 @@ class GeminiEngine:
             "If the audio contains only silence, static, or background noise without speech, output an empty string.\n"
             "Output ONLY the final plain text directly. No commentary, no tags, no quotes."
         )
+
+        if context_text and context_text.strip():
+            prompt += f"\n\nCONTEXT (The user has highlighted the following text, which may be relevant to the dictation command or text they are speaking. If they give a command like 'translate this' or 'rewrite this', apply it to this context):\n```\n{context_text.strip()}\n```"
+
         contents_payload = [audio_part, prompt]
 
         last_error = None

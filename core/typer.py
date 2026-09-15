@@ -11,7 +11,8 @@ kernel32 = ctypes.windll.kernel32
 VK_CONTROL = 0x11
 VK_SHIFT = 0x10
 VK_MENU = 0x12  # Alt key
-VK_V = 0x56
+VK_C = 0x43     # 'C' key
+VK_V = 0x56     # 'V' key
 KEYEVENTF_KEYUP = 0x0002
 
 # Register Windows 10/11 Clipboard History exclusion formats
@@ -41,6 +42,43 @@ class Typer:
             return pyperclip.paste()
         except Exception:
             return None
+
+    @staticmethod
+    def get_selected_text():
+        """
+        Attempts to copy the currently highlighted text to the clipboard by simulating Ctrl+C.
+        Temporarily saves the clipboard state to restore it afterwards.
+        """
+        # Save current clipboard
+        original_clipboard = Typer.get_clipboard_text()
+
+        # Clear clipboard so we can tell if Ctrl+C actually did anything
+        Typer.restore_clipboard("")
+
+        # Release any modifiers
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+        time.sleep(0.008)
+
+        # Simulate Ctrl+C
+        user32.keybd_event(VK_CONTROL, 0, 0, 0)
+        time.sleep(0.008)
+        user32.keybd_event(VK_C, 0, 0, 0)
+        time.sleep(0.008)
+        user32.keybd_event(VK_C, 0, KEYEVENTF_KEYUP, 0)
+        time.sleep(0.008)
+        user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+
+        # Wait for clipboard to populate
+        time.sleep(0.05)
+
+        selected_text = Typer.get_clipboard_text()
+
+        # Restore clipboard
+        Typer.restore_clipboard(original_clipboard)
+
+        return selected_text if selected_text else ""
 
     @staticmethod
     def restore_clipboard(text):

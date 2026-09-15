@@ -196,11 +196,13 @@ class DilDilApp:
         return {
             "app_name": "DIL DIL",
             "gemini_api_key": "",
-            "active_model": "gemini-flash-lite-latest",
+            "active_model": "gemini-2.0-flash-lite-preview-02-05",
             "hotkey": "ctrl+shift",
             "target_language": "english",
             "audio_sample_rate": 16000,
-            "minimize_to_tray": True
+            "minimize_to_tray": True,
+            "tone": "normal",
+            "context_enabled": False
         }
 
     def _on_model_upgraded(self, new_model_name: str):
@@ -334,6 +336,12 @@ class DilDilApp:
         self.target_hwnd = Typer.get_foreground_window()
         print(f"[DIL DIL] Hotkey Pressed! Session: {self.session_id}, Window: {self.target_hwnd}")
 
+        self.current_context_text = ""
+        if self.config.get("context_enabled", False):
+            self.current_context_text = Typer.get_selected_text()
+            if self.current_context_text:
+                print(f"[DIL DIL] Captured {len(self.current_context_text)} chars of context.")
+
         target_lang = self.config.get("target_language", "english")
         self.pill.show_listening(target_lang)
 
@@ -378,13 +386,14 @@ class DilDilApp:
         # Launch streaming transcription in background
         curr_session = self.session_id
         target_hwnd = self.target_hwnd
+        context_text = getattr(self, 'current_context_text', "")
         threading.Thread(
             target=self._process_session,
-            args=(curr_session, wav_bytes, target_hwnd),
+            args=(curr_session, wav_bytes, target_hwnd, context_text),
             daemon=True
         ).start()
 
-    def _process_session(self, session_id: int, wav_bytes: bytes, target_hwnd):
+    def _process_session(self, session_id: int, wav_bytes: bytes, target_hwnd, context_text: str = ""):
         """
         Transcribes audio with Gemini via generate_content_stream.
         Pastes each sentence progressively at the user's cursor as soon as it arrives!
@@ -393,6 +402,7 @@ class DilDilApp:
         clipboard_guard = ClipboardSessionGuard()
         sentence_count = 0
         target_lang = self.config.get("target_language", "english")
+        tone = self.config.get("tone", "normal")
 
         def _on_sentence(sentence_text: str):
             nonlocal sentence_count
@@ -412,7 +422,9 @@ class DilDilApp:
             full_text = self.gemini.process_audio_stream(
                 wav_bytes,
                 target_lang=target_lang,
-                on_sentence=_on_sentence
+                on_sentence=_on_sentence,
+                tone=tone,
+                context_text=context_text
             )
 
             if session_id == self.session_id:
