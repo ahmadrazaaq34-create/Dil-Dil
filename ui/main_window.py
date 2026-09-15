@@ -47,7 +47,7 @@ class MainWindow(QMainWindow):
 
     def _init_window(self):
         self.setWindowTitle("DIL DIL")
-        self.setFixedSize(550, 335)
+        self.setFixedSize(550, 420)
 
         self.setWindowFlags(
             Qt.WindowType.Window |
@@ -397,18 +397,16 @@ class MainWindow(QMainWindow):
 
         self.model_combo = QComboBox()
         self.model_options = [
-            ("⚡ Gemini Flash Lite (Fastest - Instant Response)", "gemini-flash-lite-latest"),
-            ("🎯 Gemini Flash (High Accuracy & Stable - Recommended)", "gemini-flash-latest"),
-            ("⚡ Gemini 3.6 Flash (High Intelligence)", "gemini-3.6-flash"),
-            ("⚡ Gemini 3.5 Flash (Standard)", "gemini-3.5-flash"),
-            ("⚡ Gemini 3.8 Flash (Preview)", "gemini-3.8-flash"),
-            ("🧠 Gemini 3.7 Flash (Reasoning)", "gemini-3.7-flash"),
+            ("⚡ Gemini 2.0 Flash Lite (Fastest - Instant Response)", "gemini-2.0-flash-lite-preview-02-05"),
+            ("🎯 Gemini 2.5 Flash (High Accuracy & Stable - Recommended)", "gemini-2.5-flash"),
+            ("⚡ Gemini 2.0 Flash", "gemini-2.0-flash"),
+            ("⚡ Gemini 1.5 Flash (Standard)", "gemini-1.5-flash"),
             ("Custom Model ID...", "custom")
         ]
         for display_name, val in self.model_options:
             self.model_combo.addItem(display_name, val)
 
-        current_model = self.config.get("active_model", "gemini-3.8-flash").strip()
+        current_model = self.config.get("active_model", "gemini-2.0-flash-lite-preview-02-05").strip()
         matched_model_idx = -1
         for i in range(self.model_combo.count() - 1):
             if self.model_combo.itemData(i) == current_model:
@@ -431,6 +429,62 @@ class MainWindow(QMainWindow):
         model_layout.addWidget(self.custom_model_input, 1)
 
         layout.addWidget(model_card)
+
+        # Tone and Context Settings Row
+        tone_context_row = QHBoxLayout()
+        tone_context_row.setSpacing(10)
+
+        # Tone / Style Card
+        tone_card = QFrame()
+        tone_card.setStyleSheet("background-color: #0d131a; border: 1px solid #16261e; border-radius: 8px;")
+        tone_layout = QVBoxLayout(tone_card)
+        tone_layout.setContentsMargins(10, 8, 10, 8)
+        tone_layout.setSpacing(5)
+
+        tone_title = QLabel("Tone / Style")
+        tone_title.setStyleSheet("color: #e2e8f0; font-size: 11px; font-weight: 600;")
+        tone_layout.addWidget(tone_title)
+
+        self.tone_combo = QComboBox()
+        self.tone_options = [
+            ("Normal (Default)", "normal"),
+            ("Professional & Formal", "professional"),
+            ("Concise & Direct", "concise"),
+            ("Markdown Format", "markdown")
+        ]
+        for display_name, val in self.tone_options:
+            self.tone_combo.addItem(display_name, val)
+
+        current_tone = self.config.get("tone", "normal")
+        for i in range(self.tone_combo.count()):
+            if self.tone_combo.itemData(i) == current_tone:
+                self.tone_combo.setCurrentIndex(i)
+                break
+
+        self.tone_combo.currentIndexChanged.connect(self._on_tone_combo_changed)
+        tone_layout.addWidget(self.tone_combo)
+        tone_context_row.addWidget(tone_card)
+
+        # Context Card
+        context_card = QFrame()
+        context_card.setStyleSheet("background-color: #0d131a; border: 1px solid #16261e; border-radius: 8px;")
+        context_layout = QVBoxLayout(context_card)
+        context_layout.setContentsMargins(10, 8, 10, 8)
+        context_layout.setSpacing(5)
+
+        context_title = QLabel("Context Awareness")
+        context_title.setStyleSheet("color: #e2e8f0; font-size: 11px; font-weight: 600;")
+        context_layout.addWidget(context_title)
+
+        self.context_checkbox = QCheckBox("Use Selected Text as Context")
+        self.context_checkbox.setStyleSheet("color: #cbd5e1; font-size: 12px; spacing: 5px;")
+        self.context_checkbox.setChecked(self.config.get("context_enabled", False))
+        self.context_checkbox.toggled.connect(self._on_context_toggled)
+        context_layout.addWidget(self.context_checkbox)
+
+        tone_context_row.addWidget(context_card)
+
+        layout.addLayout(tone_context_row)
 
         # API Key Card (Horizontal Bar)
         api_card = QFrame()
@@ -593,6 +647,18 @@ class MainWindow(QMainWindow):
     def showEvent(self, event):
         super().showEvent(event)
         self.update()
+
+    def _on_tone_combo_changed(self):
+        self.config["tone"] = self.tone_combo.currentData()
+        self._save_config()
+        if self.on_config_updated:
+            self.on_config_updated(self.config)
+
+    def _on_context_toggled(self, checked):
+        self.config["context_enabled"] = checked
+        self._save_config()
+        if self.on_config_updated:
+            self.on_config_updated(self.config)
 
     def _on_model_combo_changed(self):
         val = self.model_combo.currentData()
